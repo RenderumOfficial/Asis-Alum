@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Planilla de Asistencia — Escuela Secundaria</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📗</text></svg>">
+  <link rel="stylesheet" href="css/styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+  <!-- ===== AppBar ======================================================== -->
+  <header class="appbar">
+    <div class="appbar-left">
+      <span class="appbar-icon">📗</span>
+      <h1 id="appBarTitle">Planilla de Asistencia</h1>
+      <span class="course-badge" id="currentCourseLabel">—</span>
+      <span class="subject-badge" id="subjectBadge"></span>
+    </div>
+    <div class="appbar-right">
+      <span class="badge-demo" id="badgeDemo" style="display:none">DEMO</span>
+      <button class="btn-appbar" id="studentPanelToggle" title="Panel de alumnos">👤</button>
+      <button class="btn-appbar" id="settingsBtn" title="Configuración Supabase">⚙</button>
+    </div>
+  </header>
+
+  <!-- ===== Demo Banner =================================================== -->
+  <div class="demo-banner" id="demoBanner" style="display:none">
+    <span>⚠ Modo demo — los datos se guardan solo en este navegador.</span>
+    <span>Para producción configurá Supabase en <b>⚙</b>.</span>
+  </div>
+
+  <!-- ===== Stats Panel (día de referencia) =============================== -->
+  <section class="stats-row">
+    <div class="stat-card">
+      <span class="stat-value" id="gAlumnos">0</span>
+      <span class="stat-label">Alumnos</span>
+    </div>
+    <div class="stat-card stat-green">
+      <span class="stat-value" id="dayPresent">0</span>
+      <span class="stat-label">Presentes</span>
+    </div>
+    <div class="stat-card stat-red">
+      <span class="stat-value" id="dayAbsent">0</span>
+      <span class="stat-label">Ausentes</span>
+    </div>
+    <div class="stat-card stat-amber">
+      <span class="stat-value" id="dayHalf">0</span>
+      <span class="stat-label">Media falta</span>
+    </div>
+    <div class="stat-card stat-blue">
+      <span class="stat-value" id="dayJustified">0</span>
+      <span class="stat-label">Justificados</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-value" id="dayUnset">0</span>
+      <span class="stat-label">Sin marcar</span>
+    </div>
+    <div class="stat-card stat-pct">
+      <span class="stat-value" id="dayPct">0%</span>
+      <span class="stat-label">Asistencia</span>
+    </div>
+  </section>
+
+  <!-- ===== Toolbar ======================================================= -->
+  <nav class="toolbar">
+    <div class="toolbar-section">
+      <div class="nav-group">
+        <button class="btn-nav" id="btnPrev" title="Anterior">◀</button>
+        <button class="btn-nav btn-nav-today" id="btnToday" title="Ir a hoy">Hoy</button>
+        <button class="btn-nav" id="btnNext" title="Siguiente">▶</button>
+      </div>
+      <span class="nav-label" id="navLabel"></span>
+      <input type="date" id="jumpToDate" class="date-jump" title="Saltar a una fecha específica">
+      <span class="range-label" id="rangeLabel"></span>
+    </div>
+
+    <div class="toolbar-section">
+      <div class="view-tabs">
+        <button data-view="dia" class="btn-view" title="Vista de un día">Día</button>
+        <button data-view="semana" class="btn-view">Semana</button>
+        <button data-view="mes" class="btn-view active">Mes</button>
+        <button data-view="ciclo" class="btn-view">Ciclo</button>
+      </div>
+    </div>
+
+    <div class="toolbar-section toolbar-right">
+      <div class="course-group">
+        <label class="toolbar-label">Curso:</label>
+        <select id="courseSelect" class="select-course" title="Seleccionar curso"></select>
+        <button class="btn-sm" id="newCourseBtn" title="Nuevo curso">+</button>
+      </div>
+      <div class="subject-group">
+        <label class="toolbar-label">Materia:</label>
+        <select id="subjectSelect" class="select-course" title="Seleccionar materia"></select>
+        <button class="btn-sm" id="newSubjectBtn" title="Nueva materia">+</button>
+      </div>
+      <div class="student-group">
+        <button class="btn-sm btn-primary" id="addStudentBtn" title="Agregar alumno">+ Alumno</button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ===== Active Day Bar ================================================ -->
+  <div class="day-bar">
+    <span class="day-bar-label">Día de referencia:</span>
+    <input type="date" id="activeDayTitle" class="date-jump date-jump-sm">
+    <span class="legend-inline">
+      <span class="legend-item lg-p">P = Presente</span>
+      <span class="legend-item lg-a">A = Ausente</span>
+      <span class="legend-item lg-m">M = Media falta</span>
+      <span class="legend-item lg-j">J = Justificado</span>
+      <span class="legend-item lg-ntd">■ No lectivo</span>
+    </span>
+  </div>
+
+  <!-- ===== Sheet Grid ==================================================== -->
+  <main class="grid-container" id="sheetWrap">
+    <!-- Rendered by Attendance.renderGrid() -->
+  </main>
+
+  <!-- ===== Student Panel ================================================= -->
+  <section class="student-panel" id="studentPanel">
+    <div class="sp-header">
+      <h3>Gestión de Alumnos <span class="badge-count" id="studentCount">0</span></h3>
+      <div class="sp-controls">
+        <input type="text" id="studentSearch" class="search-input" placeholder="Buscar por apellido o nombre…">
+        <button data-sort="list" class="btn-sm active" title="Ordenar por nº de lista">N° lista</button>
+        <button data-sort="alpha" class="btn-sm" title="Ordenar alfabéticamente">A — Z</button>
+        <span class="sort-hint" title="En modo «N° lista» podés arrastrar las filas para reordenar">↕ arrastrar</span>
+        <button class="btn-sm" id="closeStudentPanel" title="Cerrar panel">✕</button>
+      </div>
+    </div>
+    <div class="sp-table-wrap">
+      <table class="sp-table">
+        <thead>
+          <tr>
+            <th class="st-col-num">N°</th>
+            <th class="st-col-name">Apellido y Nombre</th>
+            <th class="st-col-actions"></th>
+          </tr>
+        </thead>
+        <tbody id="studentsTbody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ===================================================================== -->
+  <!--                          MODALES                                      -->
+  <!-- ===================================================================== -->
+
+  <!-- Modal: Agregar alumno -->
+  <div class="modal" id="addStudentModal">
+    <div class="modal-dialog">
+      <h3>Agregar Alumno</h3>
+      <form id="addStudentForm" class="modal-form">
+        <div class="form-group">
+          <label for="addFirstName">Nombre</label>
+          <input type="text" id="addFirstName" required data-autofocus autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label for="addLastName">Apellido</label>
+          <input type="text" id="addLastName" required autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label for="addListNumber">N° de lista</label>
+          <input type="number" id="addListNumber" min="1" max="100">
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn" onclick="UI.closeModal('addStudentModal')">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Agregar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Editar alumno -->
+  <div class="modal" id="editStudentModal">
+    <div class="modal-dialog">
+      <h3>Editar Alumno</h3>
+      <form id="editStudentForm" class="modal-form">
+        <input type="hidden" id="editStudentId">
+        <div class="form-group">
+          <label for="editFirstName">Nombre</label>
+          <input type="text" id="editFirstName" required data-autofocus autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label for="editLastName">Apellido</label>
+          <input type="text" id="editLastName" required autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label for="editListNumber">N° de lista</label>
+          <input type="number" id="editListNumber" min="1" max="100">
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn" onclick="UI.closeModal('editStudentModal')">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Nuevo curso -->
+  <div class="modal" id="newCourseModal">
+    <div class="modal-dialog">
+      <h3>Nuevo Curso</h3>
+      <form id="newCourseForm" class="modal-form">
+        <div class="form-group">
+          <label for="newCourseYear">Año escolar</label>
+          <select id="newCourseYear">
+            <option value="1">1°</option>
+            <option value="2">2°</option>
+            <option value="3" selected>3°</option>
+            <option value="4">4°</option>
+            <option value="5">5°</option>
+            <option value="6">6°</option>
+            <option value="7">7°</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="newCourseDivision">División</label>
+          <input type="text" id="newCourseDivision" maxlength="3" placeholder="ej. B" data-autofocus>
+        </div>
+        <div class="form-group">
+          <label for="newCourseShift">Turno</label>
+          <select id="newCourseShift">
+            <option value="mañana">Mañana</option>
+            <option value="tarde">Tarde</option>
+            <option value="noche">Noche</option>
+          </select>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn" onclick="UI.closeModal('newCourseModal')">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Crear curso</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Configuración Supabase -->
+  <div class="modal" id="settingsModal">
+    <div class="modal-dialog">
+      <h3>⚙ Configuración Supabase</h3>
+      <p class="modal-desc">Completá estos datos para conectar con tu base de datos PostgreSQL en Supabase (podés cargarlos directo en <code>js/config.js</code>).</p>
+      <form class="modal-form">
+        <div class="form-group">
+          <label for="settingsUrl">URL del proyecto Supabase</label>
+          <input type="url" id="settingsUrl" placeholder="https://tu-proyecto.supabase.co">
+        </div>
+        <div class="form-group">
+          <label for="settingsKey">Anon Public Key</label>
+          <input type="text" id="settingsKey" placeholder="eyJhbGciOiJIUzI1NiIs...">
+        </div>
+        <div class="form-group">
+          <label for="settingsSchool">Nombre de la escuela</label>
+          <input type="text" id="settingsSchool" placeholder="EEE/ES N°...">
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn" id="settingsCancelBtn">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="settingsSaveBtn">Guardar y recargar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!--                           SCRIPTS                                     -->
+  <!-- ===================================================================== -->
+  <script src="js/config.js"></script>
+  <script src="js/supabase.js"></script>
+  <script src="js/calendar.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/attendance.js"></script>
+  <script src="js/students.js"></script>
+  <script src="js/app.js"></script>
+
+</body>
+</html>
